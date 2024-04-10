@@ -1,0 +1,69 @@
+# Рекомендую использовать .graphqlrc, он автоматически распознается всеми возможными плагинами и редакторами.
+# @see https://the-guild.dev/graphql/config/docs/user/usage
+
+# @see https://the-guild.dev/graphql/config/docs/user/usage#projects
+schema: ".codegen/schema.graphql"
+documents:
+  - "./src/**/*.graphql"
+ignoreNoDocuments: true
+
+# https://the-guild.dev/graphql/config/docs/user/usage#extensions
+extensions:
+  # Подробная информация о graphql-codegen
+  # @see https://the-guild.dev/graphql/codegen/docs/getting-started/installation
+  codegen:
+    errorsOnly: true
+    # хуки жизненного цикла 
+    # @see https://the-guild.dev/graphql/codegen/docs/config-reference/lifecycle-hooks
+    hooks:
+      # запускается при старте extensions codegen
+      afterStart: [
+        # clean.js - удаляет все файлы при старте
+        'node ./scripts/bootstrap-generate/dist/hooks/clean.js'
+      ]
+      afterOneFileWrite: [
+       # prettier делает сгенерированный файлы более читаемым
+        'prettier --write', 
+      ]
+      # запускается после того как все файлы, записаны на диск 
+      afterAllFileWrite: [
+        # записывает пути сгенерированных файлов чтобы, 
+        # afterStart почистил перед стартом все папки _generated_
+        'node ./scripts/bootstrap-generate/dist/hooks/cache.js'
+      ]
+    generates:
+      # Настройка плагина typescript
+      ./types/schema.ts:
+        config:
+          nonOptionalTypename: true
+          defaultScalarType: unknown
+          scalars:
+            ID: "number"
+        plugins:
+          - typescript
+          - add:
+              content: "/* eslint-disable */\n \n /* Auto generated file */ \n "
+      ./src:
+        # Запускает на каждую операцию плагин
+        # @see https://the-guild.dev/graphql/codegen/plugins/presets/near-operation-file-preset
+        preset: near-operation-file
+        # Настройка output
+        presetConfig:
+          baseTypesPath: ../types/schema.ts
+          folder: _generated_
+          extension: .generated.ts
+        # Конфиг
+        # @see https://the-guild.dev/graphql/codegen/plugins/typescript/typescript-operations
+        config:
+          nonOptionalTypename: true
+          preResolveTypes: false
+          namingConvention:
+            typeNames: change-case-all#pascalCase
+        plugins:
+          # Генерация типизированного запроса и фрагментов
+          # @see https://the-guild.dev/graphql/codegen/plugins/typescript/typescript-operations
+          - typescript-operations
+          # Генерация кастомных функций
+          - './scripts/bootstrap-generate/dist/index.js': 
+              # Откуда брать клиент 
+              fetcherImport: './src/api/api.ts#fetcher'
